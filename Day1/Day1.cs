@@ -4,7 +4,7 @@ using System.IO;
 class Day1 {
     private static string rootDirectory = "H:/AdventOfCode/AoC2019Justin/Day1/";
     
-    static void Main(string[] args) {
+    static void _Main(string[] args) {
         int totalMass = 0;
         foreach (string line in File.ReadLines(rootDirectory + "input.txt")) {
             totalMass += GetFuelRequired(int.Parse(line));
