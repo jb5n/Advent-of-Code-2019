@@ -58,7 +58,7 @@ class Day3 {
     
     private static string rootDirectory = "H:/AdventOfCode/AoC2019Justin/Day3/";
     
-    static void Main(string[] args) {
+    static void _Main(string[] args) {
         string[] allLines = File.ReadAllLines(rootDirectory + "input.txt");
         List<LineSegment> firstWire = ParseLine(allLines[0]);
         List<LineSegment> secondWire = ParseLine(allLines[1]);
