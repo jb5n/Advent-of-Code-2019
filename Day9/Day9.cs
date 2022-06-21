@@ -4,66 +4,36 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Numerics;
 
-class Day7 {
-    private static string rootDirectory = "H:/AdventOfCode/AoC2019Justin/Day7/";
+class Day9 {
+    private static string rootDirectory = "H:/AdventOfCode/AoC2019Justin/Day9/";
 
-    private static Dictionary<int, Queue<int>> intcodeQueues = new Dictionary<int, Queue<int>>();
-    private static int thrusterOutput = 0;
+    private static Dictionary<BigInteger, Queue<BigInteger>> intcodeQueues = new Dictionary<BigInteger, Queue<BigInteger>>();
 
-    private static Stopwatch timer;
+    private static int relativeBase = 0;
 
-    static void _Main(string[] args) {
+    static void Main(string[] args) {
         // populate num array
         string[] values = File.ReadAllText(rootDirectory + "input.txt").Split(',');
-        timer = Stopwatch.StartNew();
-        int[] numArray = new int[values.Length];
-        for (int i = 0; i < values.Length; i++) {
-            numArray[i] = int.Parse(values[i]);
+        BigInteger[] numArray = new BigInteger[values.Length + 300];
+        for (int i = 0; i < numArray.Length; i++) {
+            if (i < values.Length) {
+                numArray[i] = BigInteger.Parse(values[i]);
+            }
+            else {
+                numArray[i] = 0;
+            }
         }
         
-        List<int[]> phaseSequencePermutations = new List<int[]>();
-        int[] phaseSequence = {5, 6, 7, 8, 9};
-        GetPermutations(phaseSequence, 0, phaseSequence.Length - 1, ref phaseSequencePermutations);
-        foreach (int phase in phaseSequence) {
-            intcodeQueues.Add(phase, new Queue<int>());
+        intcodeQueues.Add(0, new Queue<BigInteger>());
+        intcodeQueues[0].Enqueue(2);
+        intcodeQueues.Add(1, new Queue<BigInteger>());
+
+        IEnumerator computer = IntcodeComputer(0, 1, numArray);
+        while (computer.MoveNext()) {
         }
-
-        int maxOutput = 0;
-        foreach (int[] sequencePermutation in phaseSequencePermutations) {
-            thrusterOutput = 0;
-            foreach (int phase in phaseSequence) {
-                intcodeQueues[phase].Clear();
-            }
-
-            IEnumerator[] computers = new IEnumerator[sequencePermutation.Length];
-            for(int i = 0; i < sequencePermutation.Length; i++) {
-                int nextSequence = i == sequencePermutation.Length - 1 ? sequencePermutation[0] : sequencePermutation[i + 1];
-                intcodeQueues[sequencePermutation[i]].Enqueue(sequencePermutation[i]);
-                if (i == 0) {
-                    intcodeQueues[sequencePermutation[i]].Enqueue(0);
-                }
-                
-                computers[i] = IntcodeComputer(sequencePermutation[i], nextSequence, numArray, i == sequencePermutation.Length - 1);
-            }
-
-            bool allComputersComplete = false;
-            while (!allComputersComplete) {
-                allComputersComplete = true;
-                for (int i = 0; i < sequencePermutation.Length; i++) {
-                    if (computers[i].MoveNext()) {
-                        allComputersComplete = false;
-                    }
-                }
-            }
-
-            if (thrusterOutput > maxOutput) {
-                maxOutput = thrusterOutput;
-            }
-        }
-        timer.Stop();
-
-        Console.WriteLine("Highest thruster output: " + maxOutput + ". Duration ms: " + timer.Elapsed.TotalMilliseconds);
+        Console.WriteLine("Output: " + intcodeQueues[1].Dequeue());
     }
 
     static void GetPermutations(int[] phaseSequence, int startIndex, int endIndex, ref List<int[]> permutations) {
@@ -89,9 +59,9 @@ class Day7 {
         (a, b) = (b, a);
     }
     
-    static IEnumerator IntcodeComputer(int phase, int outputPhase, int[] numArrayOriginal, bool sendOutputToThrusters) {
+    static IEnumerator IntcodeComputer(int inputQueueIndex, int outputQueueIndex, BigInteger[] numArrayOriginal) {
         // copy the numArray
-        int[] numArrayCopy = new int[numArrayOriginal.Length];
+        BigInteger[] numArrayCopy = new BigInteger[numArrayOriginal.Length];
         for (int i = 0; i < numArrayOriginal.Length; i++) {
             numArrayCopy[i] = numArrayOriginal[i];
         }
@@ -100,8 +70,8 @@ class Day7 {
         bool running = true;
         string paramModes = "";
         while (running) {
-            int instruction = numArrayCopy[curIndex];
-            int opcode = instruction;
+            BigInteger instruction = numArrayCopy[curIndex];
+            int opcode = (int)instruction;
             if (numArrayCopy[curIndex] > 99) {
                 opcode = int.Parse(instruction.ToString().Substring(instruction.ToString().Length - 2));
                 paramModes = instruction.ToString().Substring(0, instruction.ToString().Length - 2);
@@ -117,7 +87,17 @@ class Day7 {
                 if (curIndex + i >= numArrayCopy.Length) {
                     break;
                 }
-                parameters[i - 1] = paramModes[3 - i] == '0' ? numArrayCopy[curIndex + i] : curIndex + i;
+
+                // parameter modes
+                if (paramModes[3 - i] == '0') { // position mode
+                    parameters[i - 1] = (int)numArrayCopy[curIndex + i];
+                }
+                else if (paramModes[3 - i] == '1') { // immediate mode
+                    parameters[i - 1] = curIndex + i;
+                }
+                else if (paramModes[3 - i] == '2') { // relative mode
+                    parameters[i - 1] = (int)numArrayCopy[curIndex + i] + relativeBase;
+                }
             }
 
             switch (opcode) {
@@ -130,24 +110,21 @@ class Day7 {
                     curIndex += 4;
                     break;
                 case 3:
-                    while (intcodeQueues[phase].Count == 0) {
-                        //Console.WriteLine("Waiting " + phase);
+                    while (intcodeQueues[inputQueueIndex].Count == 0) {
+                        Console.WriteLine("Waiting " + inputQueueIndex);
                         yield return null;
                     }
-                    numArrayCopy[parameters[0]] = intcodeQueues[phase].Dequeue();
+                    numArrayCopy[parameters[0]] = intcodeQueues[inputQueueIndex].Dequeue();
                     curIndex += 2;
                     break;
                 case 4:
-                    int output = numArrayCopy[parameters[0]];
-                    intcodeQueues[outputPhase].Enqueue(output);
-                    if (sendOutputToThrusters) {
-                        thrusterOutput = output;
-                    }
+                    BigInteger output = numArrayCopy[parameters[0]];
+                    intcodeQueues[outputQueueIndex].Enqueue(output);
                     curIndex += 2;
                     break;
                 case 5:
                     if (numArrayCopy[parameters[0]] != 0) {
-                        curIndex = numArrayCopy[parameters[1]];
+                        curIndex = (int)numArrayCopy[parameters[1]];
                     }
                     else {
                         curIndex += 3;
@@ -155,7 +132,7 @@ class Day7 {
                     break;
                 case 6:
                     if (numArrayCopy[parameters[0]] == 0) {
-                        curIndex = numArrayCopy[parameters[1]];
+                        curIndex = (int)numArrayCopy[parameters[1]];
                     }
                     else {
                         curIndex += 3;
@@ -178,6 +155,10 @@ class Day7 {
                         numArrayCopy[parameters[2]] = 0;
                     }
                     curIndex += 4;
+                    break;
+                case 9:
+                    relativeBase += (int)numArrayCopy[parameters[0]];
+                    curIndex += 2;
                     break;
                 case 99: // exit
                     running = false;
